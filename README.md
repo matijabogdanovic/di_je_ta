@@ -42,4 +42,4 @@ Settings → Export JSON backup writes versioned structured records through the 
 
 ## Repository
 
-This checkout is the single repository. GitHub publishing requires an authenticated GitHub connection or CLI, which was unavailable during initial implementation. No remote, public hosting, or domain is configured.
+The single source repository is [matijabogdanovic/di_je_ta](https://github.com/matijabogdanovic/di_je_ta). GitHub stores source code only; it is not a backend or datastore for the app. No public app hosting or custom domain is configured.
