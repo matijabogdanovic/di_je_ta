@@ -16,7 +16,7 @@ public final class TrackingStore {
         let c = Calendar.current.dateComponents([.year,.month,.day], from: date)
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
     }
-    public func save(_ meal: Meal) throws {
+    public func save(_ meal: Meal, audit: MealEstimateAudit? = nil) throws {
         guard !meal.items.isEmpty, meal.items.allSatisfy(\.isValid), meal.totals.isValid,
               Set(meal.items.map(\.id)).count == meal.items.count,
               ["Breakfast","Lunch","Dinner","Snack"].contains(meal.mealType) else { throw StoreError.invalid("Add valid food amounts and nonnegative nutrition values.") }
@@ -26,6 +26,18 @@ public final class TrackingStore {
             try database.execute("DELETE FROM meal_items WHERE meal_id=?", [meal.id.uuidString])
             for i in meal.items {
                 try database.execute("INSERT INTO meal_items VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [i.id.uuidString,meal.id.uuidString,i.foodName,i.estimatedGrams.map(String.init(describing:)),String(i.finalGrams),i.estimate.map { String($0.calories) },String(i.final.calories),i.estimate.map { String($0.protein) },String(i.final.protein),i.estimate.map { String($0.carbs) },String(i.final.carbs),i.estimate.map { String($0.fat) },String(i.final.fat),i.confidence.map(String.init(describing:)),String(i.createdAt.timeIntervalSince1970)])
+            }
+            if let audit {
+                guard audit.originalTotals.isValid, !audit.modelName.isEmpty else { throw StoreError.invalid("Invalid original estimate.") }
+                let encoded = try JSONEncoder().encode(audit)
+                try database.execute("INSERT INTO ai_estimates VALUES (?,?,?,?,?,?)", [UUID().uuidString,meal.id.uuidString,String(decoding:encoded,as:UTF8.self),audit.modelName,String(audit.timestamp.timeIntervalSince1970),nil])
+            }
+            for row in try database.query("SELECT id,normalized_response FROM ai_estimates WHERE meal_id=?", [meal.id.uuidString]) {
+                guard let raw = row["normalized_response"], let original = try? JSONDecoder().decode(MealEstimateAudit.self,from:Data(raw.utf8)) else { continue }
+                let a = original.originalTotals
+                let delta = Nutrition(calories:n.calories-a.calories,protein:n.protein-a.protein,carbs:n.carbs-a.carbs,fat:n.fat-a.fat)
+                let data = try JSONEncoder().encode(delta)
+                try database.execute("UPDATE ai_estimates SET user_correction_delta=? WHERE id=?",[String(decoding:data,as:UTF8.self),row["id"]])
             }
         }
     }
