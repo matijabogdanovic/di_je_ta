@@ -1,10 +1,12 @@
 import SwiftUI
 import Charts
 import WeightCoachCore
+import WeightCoachAI
 import UniformTypeIdentifiers
 
 struct RootView: View {
     @Bindable var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TabView {
             TodayView(model: model).tabItem { Label("Today",systemImage:"sun.max") }
@@ -12,7 +14,8 @@ struct RootView: View {
             HistoryView(model: model).tabItem { Label("History",systemImage:"chart.xyaxis.line") }
             NavigationStack { ContentUnavailableView("Your journal comes first", systemImage:"sparkles", description:Text("AI coaching arrives in Milestone 4. For now, follow your weekly trend and keep logging." )).navigationTitle("Coach") }.tabItem { Label("Coach",systemImage:"sparkles") }
             SettingsView(model:model).tabItem { Label("Settings",systemImage:"gearshape") }
-        }.tint(.teal)
+        }.tint(.teal).task { await model.ai.load() }
+        .onChange(of:scenePhase) { _,phase in if phase == .background { model.ai.cancel() } }
         .alert("Couldn’t complete that action", isPresented:Binding(get:{model.error != nil},set:{if !$0 { model.error = nil }})) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
     }
 }
@@ -94,13 +97,18 @@ struct MealEditor: View {
     @Bindable var model: AppModel
     @State var meal: Meal
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var photo = MealPhotoDraft()
+    @State private var audit:MealEstimateAudit?
+    private var isNew:Bool { !model.meals.contains { $0.id == meal.id } }
     var body: some View {
         NavigationStack {
             Form {
+                if isNew { MealPhotoSection(draft:photo,connection:model.ai,meal:$meal,audit:$audit) }
                 Section("Meal") {
                     DatePicker("When",selection:$meal.timestamp,in:...Date())
                     Picker("Type",selection:$meal.mealType) { ForEach(["Breakfast","Lunch","Dinner","Snack"],id:\.self) { Text($0) } }
-                    TextField("Notes",text:$meal.notes,axis:.vertical)
+                    if !isNew { TextField("Notes",text:$meal.notes,axis:.vertical) }
                 }
                 ForEach($meal.items) { $item in
                     Section {
@@ -116,8 +124,10 @@ struct MealEditor: View {
                 }
                 Button { meal.items.append(MealItem()) } label: { Label("Add another food",systemImage:"plus") }
                 Section("Meal total") { Text("\(Int(meal.totals.calories)) kcal · \(Int(meal.totals.protein)) g protein") }
-                Section { Button("Save meal") { if model.perform({ try model.store.save(meal) }) { dismiss() } }.disabled(meal.items.isEmpty || !meal.items.allSatisfy(\.isValid)) }
-            }.navigationTitle("Meal details").toolbar { ToolbarItem(placement:.cancellationAction) { Button("Cancel") { dismiss() } } }
+                Section { Button("Save meal") { if model.perform({ try model.store.save(meal,audit:audit) }) { photo.purge(); dismiss() } }.disabled(photo.isAnalyzing || photo.isLoading || meal.items.isEmpty || !meal.items.allSatisfy(\.isValid)) }
+            }.navigationTitle("Meal details").toolbar { ToolbarItem(placement:.cancellationAction) { Button("Cancel") { photo.purge(); dismiss() } } }
+            .onDisappear { photo.purge() }
+            .onChange(of:scenePhase) { _,phase in if phase == .background { photo.purge() } }
         }
     }
 }
@@ -204,7 +214,7 @@ struct SettingsView: View {
                 Section("Daily targets") { numeric("Calories (kcal)",$draft.calories); numeric("Protein (g)",$draft.protein) }
                 Section("Weight goals") { numeric("Target weight (kg)",$draft.weight); numeric("Loss rate (kg/week)",$draft.lossRate); Picker("Units",selection:$draft.units) { Text("Metric").tag("metric"); Text("Imperial").tag("imperial") }; Text("Stored weights and goal inputs use kilograms. Displayed weigh-ins follow your unit preference.").font(.caption).foregroundStyle(.secondary) }
                 Button("Save targets") { model.perform { try model.store.save(draft) } }
-                Section("Connections") { Label("ChatGPT · Milestone 2",systemImage:"sparkles"); Label("Desktop Sync · Milestone 3",systemImage:"desktopcomputer"); Label("Garmin · Milestone 5",systemImage:"figure.run") }
+                Section("Connections") { NavigationLink { ChatGPTSettingsView(connection:model.ai) } label: { Label(model.ai.accountLabel == nil ? "Connect ChatGPT" : "AI recognition",systemImage:"sparkles") }; Label("Desktop Sync · Milestone 3",systemImage:"desktopcomputer"); Label("Garmin · Milestone 5",systemImage:"figure.run") }
                 Section("Your data") {
                     Button("Export JSON backup") { if model.perform({ backup = BackupDocument(data:try model.store.exportData()) }) { exporting = true } }
                     Button("Restore JSON backup",role:.destructive) { confirmRestore = true }

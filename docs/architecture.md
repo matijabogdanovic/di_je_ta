@@ -8,9 +8,9 @@ The connection and repositories are MainActor-confined. This keeps small persona
 
 ## Meals
 
-Final fields determine all totals. Manual entries have null estimates and confidence. Later AI recognition fills immutable original estimates; editing final values retains estimates. Meals and items save in one transaction; deleting a meal cascades to its items and audit response. AI response history has its own table for normalized structured responses. No AI calls occur in Milestone 1.
+Final fields determine all totals. Manual entries have null estimates and confidence. Later AI recognition fills immutable original estimates; editing final values retains estimates. Meals and items save in one transaction; deleting a meal cascades to its items and audit response. AI response history has its own table for normalized structured responses. AI calls are now explicitly initiated from the photo review flow; manual meal logging still needs no AI.
 
-Milestone 2 must keep image bytes in memory where possible, purge temporary files on save/cancel/error and on next startup after interruption, and avoid writing photos into logs, exports or the database. Choosing a library image does not authorize deleting the user's original photo; delete only app-owned copies. Camera capture should not save to Photos. Upload needs explicit user action. Disclose that analysis transmits the image to the provider.
+Milestone 2 holds resized, metadata-stripped image bytes only in memory, uses an ephemeral URLSession, and releases photo references and pending tasks on save/cancel/dismiss/background. Failed analysis allows an explicit retry while the editor remains active. The camera does not save to Photos; library originals are untouched. The note can describe hidden butter/oil/sauces and is sent only on Estimate with AI. The original normalized response and note are saved alongside corrections after confirmation.
 
 ## Trends
 
@@ -20,7 +20,7 @@ Current date grouping uses the device's calendar/time zone; SQL also stores the 
 
 ## Planned boundaries
 
-`ios/Services/OpenAI`: replaceable meal-analysis and coaching protocols, URLSession transport and Keychain credential lifecycle. No provider-dependent fields in authoritative nutrition records.
+`ios/Services/OpenAI`: the WeightCoachAI package contains the replaceable MealRecognizing and AccessTokenProviding protocols, streamed Responses transport, validated structured estimates and Keychain OAuth lifecycle. Native system authentication uses a temporary loopback listener. No provider-dependent fields in authoritative nutrition records. Coaching remains future work.
 
 `ios/Services/Garmin`: independent importer, mapping provider records into activity/sleep and deduplicating by day/source. Garmin is not required for manual tracking.
 
@@ -33,7 +33,7 @@ Current date grouping uses the device's calendar/time zone; SQL also stores the 
 ## Milestones
 
 1. Offline journal, migration schema, targets, history and backups: implemented.
-2. Photo analysis, supported OAuth, editable recognition and image disposal.
+2. Photo analysis, ingredient note, editable recognition, memory-only images and documented OAuth route: implemented; real-device OAuth and real-account inference remain to be verified.
 3. Verified private networking, foreground server and offline desktop dashboard.
 4. Structured-context coaching, historical notes, weekly summaries and trend-calibrated guidance.
 5. Verified Garmin import, activity/sleep and fasting tracking.

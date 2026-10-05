@@ -1,5 +1,6 @@
 import SwiftUI
 import WeightCoachCore
+import WeightCoachAI
 
 @main
 struct WeightCoachApp: App {
@@ -25,6 +26,7 @@ struct WeightCoachApp: App {
 
 @MainActor @Observable
 final class AppModel {
+    let ai = ChatGPTConnection()
     let store: TrackingStore
     var meals: [Meal] = []
     var weights: [WeighIn] = []

@@ -2,11 +2,13 @@
 
 Personal, iPhone-first nutrition and weight journal. The iPhone SQLite database is authoritative. No server, cloud database, analytics, or third-party runtime dependencies.
 
-## Milestone 1
+## Implemented
 
 Implemented: SwiftUI Today, manual multi-food meal logging and editing, dated meal history, daily weight logging and deletion, weight/protein/calorie charts (7/30/90/365/all days), 7-day calendar weight averages, logged-day weekly nutrition averages, SQLite migrations, persisted targets and unit preferences, JSON export and transactional restore.
 
-AI, photos, desktop sync/dashboard, Garmin, sleep/activity ingestion and fasting are deliberately scheduled for later milestones. Connections are visibly labeled as unavailable. No fake health data is seeded.
+Milestone 2 adds camera/photo-library input, an optional hidden-ingredient note, ChatGPT sign-in, account-specific model selection, image recognition with confidence and assumptions, editable review, and structured estimate/correction audits. Photos are held only in app memory and discarded on save, cancel, leaving the editor, or backgrounding.
+
+Desktop sync/dashboard, coaching, Garmin, sleep/activity ingestion and fasting remain later milestones. No fake health data is seeded.
 
 ## Run on iPhone
 
@@ -35,6 +37,18 @@ swift test --disable-sandbox --scratch-path /tmp/weight-coach-build
 ```
 
 See [architecture](docs/architecture.md), [database](docs/database.md), [sync protocol](docs/sync-protocol.md), and [integration research](docs/integrations.md).
+
+## Photo recognition
+
+1. Settings → Connect ChatGPT → Continue with ChatGPT. Authorize plan usage, then choose an available model that supports images and structured output.
+2. Today → Add Meal → Camera or Photo library.
+3. Add context before sending, e.g. “Bread covered with vegetables; there is 10 g of butter underneath.”
+4. Tap Estimate with AI. This transmits only the selected photo and note to OpenAI.
+5. Review assumptions and confidence, edit foods/grams/calories/macros, then Save meal.
+
+Butter, oil, sauces and other hidden ingredients are explicitly included in the prompt; unknown amounts remain estimates. Editing the note after recognition shows a reminder to analyze again. Reanalysis asks before replacing populated food entries. Manual logging remains usable without a connection.
+
+The sign-in transport uses the officially documented HTTP loopback callback while the system authentication sheet is open. Build and deterministic auth tests pass; real-account sign-in and meal recognition still require validation on your iPhone. No production OAuth credentials or personal photos were used during development. See [integration details](docs/integrations.md).
 
 ## Backup
 
